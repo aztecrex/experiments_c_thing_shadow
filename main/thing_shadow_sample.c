@@ -46,33 +46,7 @@
 #include "aws_iot_mqtt_client_interface.h"
 #include "aws_iot_shadow_interface.h"
 
-/*!
- * The goal of this sample application is to demonstrate the capabilities of shadow.
- * This device(say Connected Window) will open the window of a room based on temperature
- * It can report to the Shadow the following parameters:
- *  1. temperature of the room (double)
- *  2. status of the window (open or close)
- * It can act on commands from the cloud. In this case it will open or close the window based on the json object "windowOpen" data[open/close]
- *
- * The two variables from a device's perspective are double temperature and bool windowOpen
- * The device needs to act on only on windowOpen variable, so we will create a primitiveJson_t object with callback
- The Json Document in the cloud will be
- {
- "reported": {
- "temperature": 0,
- "windowOpen": false
- },
- "desired": {
- "windowOpen": false
- }
- }
- */
-
 static const char *TAG = "shadow";
-
-// #define ROOMTEMPERATURE_UPPERLIMIT 32.0f
-// #define ROOMTEMPERATURE_LOWERLIMIT 25.0f
-// #define STARTING_ROOMTEMPERATURE ROOMTEMPERATURE_LOWERLIMIT
 
 #define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 800
 
@@ -146,28 +120,18 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-// static void simulateRoomTemperature(float *pRoomTemperature) {
-//     static float deltaChange;
-
-//     if(*pRoomTemperature >= ROOMTEMPERATURE_UPPERLIMIT) {
-//         deltaChange = -0.5f;
-//     } else if(*pRoomTemperature <= ROOMTEMPERATURE_LOWERLIMIT) {
-//         deltaChange = 0.5f;
-//     }
-
-//     *pRoomTemperature += deltaChange;
-// }
-
-static bool shadowUpdateInProgress;
+static bool shadowUpdateInProgress = false;
+static bool should_report = true;
 
 void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, Shadow_Ack_Status_t status,
                                 const char *pReceivedJsonDocument, void *pContextData) {
     IOT_UNUSED(pThingName);
     IOT_UNUSED(action);
-    // IOT_UNUSED(pReceivedJsonDocument);
+    IOT_UNUSED(pReceivedJsonDocument);
     IOT_UNUSED(pContextData);
 
     shadowUpdateInProgress = false;
+    should_report = false;
 
     if(SHADOW_ACK_TIMEOUT == status) {
         ESP_LOGE(TAG, "Update timed out");
@@ -178,23 +142,17 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
     }
 }
 
-// void windowActuate_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
-//     IOT_UNUSED(pJsonString);
-//     IOT_UNUSED(JsonStringDataLen);
-
-//     if(pContext != NULL) {
-//         ESP_LOGI(TAG, "Delta - Window state changed to %d", *(bool *) (pContext->pData));
-//     }
-// }
-
 void lamp_callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
     IOT_UNUSED(pJsonString);
     IOT_UNUSED(JsonStringDataLen);
     if(pContext != NULL) {
+        ESP_LOGI(TAG," delta - string in lamp state change");
         ESP_LOGI(TAG, "delta - lamp state changed to %d", *(uint32_t *)(pContext->pData));
+        should_report = true;
+    } else {
+        ESP_LOGI(TAG, "cb with no data, hmm");
     }
 }
-
 
 #define NUM_LAMPS 16
 #define SZ_KEY_BUF 8
@@ -224,26 +182,8 @@ void aws_iot_task(void *param) {
 
     initialize_lamps();
 
-    // float temperature = 0.0;
-
-    // bool windowOpen = false;
-    // jsonStruct_t windowActuator;
-    // windowActuator.cb = windowActuate_Callback;
-    // windowActuator.pData = &windowOpen;
-    // windowActuator.pKey = "windowOpen";
-    // windowActuator.type = SHADOW_JSON_BOOL;
-    // windowActuator.dataLength = sizeof(bool);
-
-    // jsonStruct_t temperatureHandler;
-    // temperatureHandler.cb = NULL;
-    // temperatureHandler.pKey = "temperature";
-    // temperatureHandler.pData = &temperature;
-    // temperatureHandler.type = SHADOW_JSON_FLOAT;
-    // temperatureHandler.dataLength = sizeof(float);
-
     ESP_LOGI(TAG, "AWS IoT SDK Version %d.%d.%d-%s", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TAG);
 
-    // initialize the mqtt client
     AWS_IoT_Client mqttClient;
 
     ShadowInitParameters_t sp = ShadowInitParametersDefault;
@@ -312,7 +252,6 @@ void aws_iot_task(void *param) {
         abort();
     }
 
-    // rc = aws_iot_shadow_register_delta(&mqttClient, &windowActuator);
     for (int i=0; i< NUM_LAMPS; ++i) {
         rc = aws_iot_shadow_register_delta(&mqttClient, &(lamp_controls[i]));
         if (rc != SUCCESS)
@@ -322,9 +261,7 @@ void aws_iot_task(void *param) {
     if(SUCCESS != rc) {
         ESP_LOGE(TAG, "Shadow Register Delta Error");
     }
-    // temperature = STARTING_ROOMTEMPERATURE;
 
-    // loop and publish a change in temperature
     while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
         rc = aws_iot_shadow_yield(&mqttClient, 200);
         if(NETWORK_ATTEMPTING_RECONNECT == rc || shadowUpdateInProgress) {
@@ -333,43 +270,42 @@ void aws_iot_task(void *param) {
             // we will skip the rest of the loop.
             continue;
         }
-        // ESP_LOGI(TAG, "=======================================================================================");
-        // ESP_LOGI(TAG, "On Device: window state %s", windowOpen ? "true" : "false");
-        // simulateRoomTemperature(&temperature);
 
-        rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
-        if(SUCCESS == rc) {
-            rc = aws_iot_shadow_add_reported (
-                JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 16,
-                    &(lamp_controls[0]),
-                    &(lamp_controls[1]),
-                    &(lamp_controls[2]),
-                    &(lamp_controls[3]),
-                    &(lamp_controls[4]),
-                    &(lamp_controls[5]),
-                    &(lamp_controls[6]),
-                    &(lamp_controls[7]),
-                    &(lamp_controls[8]),
-                    &(lamp_controls[9]),
-                    &(lamp_controls[10]),
-                    &(lamp_controls[11]),
-                    &(lamp_controls[12]),
-                    &(lamp_controls[13]),
-                    &(lamp_controls[14]),
-                    &(lamp_controls[15])
-            );
+        if (should_report) {
+
+            rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
             if(SUCCESS == rc) {
-                rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+                rc = aws_iot_shadow_add_reported (
+                    JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 16,
+                        &(lamp_controls[0]),
+                        &(lamp_controls[1]),
+                        &(lamp_controls[2]),
+                        &(lamp_controls[3]),
+                        &(lamp_controls[4]),
+                        &(lamp_controls[5]),
+                        &(lamp_controls[6]),
+                        &(lamp_controls[7]),
+                        &(lamp_controls[8]),
+                        &(lamp_controls[9]),
+                        &(lamp_controls[10]),
+                        &(lamp_controls[11]),
+                        &(lamp_controls[12]),
+                        &(lamp_controls[13]),
+                        &(lamp_controls[14]),
+                        &(lamp_controls[15])
+                );
                 if(SUCCESS == rc) {
-                    ESP_LOGI(TAG, "Update Shadow: %s", JsonDocumentBuffer);
-                    rc = aws_iot_shadow_update(&mqttClient, CONFIG_AWS_EXAMPLE_THING_NAME, JsonDocumentBuffer,
-                                               ShadowUpdateStatusCallback, NULL, 4, true);
-                    shadowUpdateInProgress = true;
+                    rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+                    if(SUCCESS == rc) {
+                        ESP_LOGI(TAG, "Update Shadow: %s", JsonDocumentBuffer);
+                        rc = aws_iot_shadow_update(&mqttClient, CONFIG_AWS_EXAMPLE_THING_NAME, JsonDocumentBuffer,
+                                                ShadowUpdateStatusCallback, NULL, 4, true);
+                        shadowUpdateInProgress = true;
+                    }
                 }
             }
+            ESP_LOGI(TAG, "Stack remaining for task '%s' is %d bytes", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL));
         }
-        ESP_LOGI(TAG, "*****************************************************************************************");
-        ESP_LOGI(TAG, "Stack remaining for task '%s' is %d bytes", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL));
 
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
