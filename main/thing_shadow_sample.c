@@ -166,9 +166,6 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
     IOT_UNUSED(action);
     // IOT_UNUSED(pReceivedJsonDocument);
     IOT_UNUSED(pContextData);
-    ESP_LOGI(TAG,"in update status callback");
-
-    ESP_LOGI(TAG, "doc: %s", pReceivedJsonDocument);
 
     shadowUpdateInProgress = false;
 
@@ -181,19 +178,18 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
     }
 }
 
-void windowActuate_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
-    IOT_UNUSED(pJsonString);
-    IOT_UNUSED(JsonStringDataLen);
+// void windowActuate_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+//     IOT_UNUSED(pJsonString);
+//     IOT_UNUSED(JsonStringDataLen);
 
-    if(pContext != NULL) {
-        ESP_LOGI(TAG, "Delta - Window state changed to %d", *(bool *) (pContext->pData));
-    }
-}
+//     if(pContext != NULL) {
+//         ESP_LOGI(TAG, "Delta - Window state changed to %d", *(bool *) (pContext->pData));
+//     }
+// }
 
 void lamp_callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
     IOT_UNUSED(pJsonString);
     IOT_UNUSED(JsonStringDataLen);
-    ESP_LOGI(TAG,"in lamp callback");
     if(pContext != NULL) {
         ESP_LOGI(TAG, "delta - lamp state changed to %d", *(uint32_t *)(pContext->pData));
     }
@@ -337,7 +333,7 @@ void aws_iot_task(void *param) {
             // we will skip the rest of the loop.
             continue;
         }
-        ESP_LOGI(TAG, "=======================================================================================");
+        // ESP_LOGI(TAG, "=======================================================================================");
         // ESP_LOGI(TAG, "On Device: window state %s", windowOpen ? "true" : "false");
         // simulateRoomTemperature(&temperature);
 
