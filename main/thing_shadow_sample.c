@@ -70,9 +70,9 @@
 
 static const char *TAG = "shadow";
 
-#define ROOMTEMPERATURE_UPPERLIMIT 32.0f
-#define ROOMTEMPERATURE_LOWERLIMIT 25.0f
-#define STARTING_ROOMTEMPERATURE ROOMTEMPERATURE_LOWERLIMIT
+// #define ROOMTEMPERATURE_UPPERLIMIT 32.0f
+// #define ROOMTEMPERATURE_LOWERLIMIT 25.0f
+// #define STARTING_ROOMTEMPERATURE ROOMTEMPERATURE_LOWERLIMIT
 
 #define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 800
 
@@ -146,17 +146,17 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-static void simulateRoomTemperature(float *pRoomTemperature) {
-    static float deltaChange;
+// static void simulateRoomTemperature(float *pRoomTemperature) {
+//     static float deltaChange;
 
-    if(*pRoomTemperature >= ROOMTEMPERATURE_UPPERLIMIT) {
-        deltaChange = -0.5f;
-    } else if(*pRoomTemperature <= ROOMTEMPERATURE_LOWERLIMIT) {
-        deltaChange = 0.5f;
-    }
+//     if(*pRoomTemperature >= ROOMTEMPERATURE_UPPERLIMIT) {
+//         deltaChange = -0.5f;
+//     } else if(*pRoomTemperature <= ROOMTEMPERATURE_LOWERLIMIT) {
+//         deltaChange = 0.5f;
+//     }
 
-    *pRoomTemperature += deltaChange;
-}
+//     *pRoomTemperature += deltaChange;
+// }
 
 static bool shadowUpdateInProgress;
 
@@ -228,22 +228,22 @@ void aws_iot_task(void *param) {
 
     initialize_lamps();
 
-    float temperature = 0.0;
+    // float temperature = 0.0;
 
-    bool windowOpen = false;
-    jsonStruct_t windowActuator;
-    windowActuator.cb = windowActuate_Callback;
-    windowActuator.pData = &windowOpen;
-    windowActuator.pKey = "windowOpen";
-    windowActuator.type = SHADOW_JSON_BOOL;
-    windowActuator.dataLength = sizeof(bool);
+    // bool windowOpen = false;
+    // jsonStruct_t windowActuator;
+    // windowActuator.cb = windowActuate_Callback;
+    // windowActuator.pData = &windowOpen;
+    // windowActuator.pKey = "windowOpen";
+    // windowActuator.type = SHADOW_JSON_BOOL;
+    // windowActuator.dataLength = sizeof(bool);
 
-    jsonStruct_t temperatureHandler;
-    temperatureHandler.cb = NULL;
-    temperatureHandler.pKey = "temperature";
-    temperatureHandler.pData = &temperature;
-    temperatureHandler.type = SHADOW_JSON_FLOAT;
-    temperatureHandler.dataLength = sizeof(float);
+    // jsonStruct_t temperatureHandler;
+    // temperatureHandler.cb = NULL;
+    // temperatureHandler.pKey = "temperature";
+    // temperatureHandler.pData = &temperature;
+    // temperatureHandler.type = SHADOW_JSON_FLOAT;
+    // temperatureHandler.dataLength = sizeof(float);
 
     ESP_LOGI(TAG, "AWS IoT SDK Version %d.%d.%d-%s", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TAG);
 
@@ -316,7 +316,7 @@ void aws_iot_task(void *param) {
         abort();
     }
 
-    rc = aws_iot_shadow_register_delta(&mqttClient, &windowActuator);
+    // rc = aws_iot_shadow_register_delta(&mqttClient, &windowActuator);
     for (int i=0; i< NUM_LAMPS; ++i) {
         rc = aws_iot_shadow_register_delta(&mqttClient, &(lamp_controls[i]));
         if (rc != SUCCESS)
@@ -326,7 +326,7 @@ void aws_iot_task(void *param) {
     if(SUCCESS != rc) {
         ESP_LOGE(TAG, "Shadow Register Delta Error");
     }
-    temperature = STARTING_ROOMTEMPERATURE;
+    // temperature = STARTING_ROOMTEMPERATURE;
 
     // loop and publish a change in temperature
     while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
@@ -338,8 +338,8 @@ void aws_iot_task(void *param) {
             continue;
         }
         ESP_LOGI(TAG, "=======================================================================================");
-        ESP_LOGI(TAG, "On Device: window state %s", windowOpen ? "true" : "false");
-        simulateRoomTemperature(&temperature);
+        // ESP_LOGI(TAG, "On Device: window state %s", windowOpen ? "true" : "false");
+        // simulateRoomTemperature(&temperature);
 
         rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
         if(SUCCESS == rc) {
