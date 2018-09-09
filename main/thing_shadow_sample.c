@@ -135,6 +135,7 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
 
     if(SHADOW_ACK_TIMEOUT == status) {
         ESP_LOGE(TAG, "Update timed out");
+        should_report = true;
     } else if(SHADOW_ACK_REJECTED == status) {
         ESP_LOGE(TAG, "Update rejected");
     } else if(SHADOW_ACK_ACCEPTED == status) {
@@ -264,6 +265,7 @@ void aws_iot_task(void *param) {
 
     while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
         rc = aws_iot_shadow_yield(&mqttClient, 200);
+        if (rc != SUCCESS) ESP_LOGE(TAG, "non-success result from first yield %d", rc);
         if(NETWORK_ATTEMPTING_RECONNECT == rc || shadowUpdateInProgress) {
             rc = aws_iot_shadow_yield(&mqttClient, 1000);
             // If the client is attempting to reconnect, or already waiting on a shadow update,
@@ -271,9 +273,10 @@ void aws_iot_task(void *param) {
             continue;
         }
 
-        if (should_report) {
+        if (should_report && !shadowUpdateInProgress) {
 
             rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+            if (rc != SUCCESS) ESP_LOGE(TAG, "non-success result from init json document %d", rc);
             if(SUCCESS == rc) {
                 rc = aws_iot_shadow_add_reported (
                     JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 16,
@@ -294,8 +297,10 @@ void aws_iot_task(void *param) {
                         &(lamp_controls[14]),
                         &(lamp_controls[15])
                 );
+                if (rc != SUCCESS) ESP_LOGE(TAG, "non-success result from add reported %d", rc);
                 if(SUCCESS == rc) {
                     rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+                    if (rc != SUCCESS) ESP_LOGE(TAG, "non-success result from finalize json document %d", rc);
                     if(SUCCESS == rc) {
                         ESP_LOGI(TAG, "Update Shadow: %s", JsonDocumentBuffer);
                         rc = aws_iot_shadow_update(&mqttClient, CONFIG_AWS_EXAMPLE_THING_NAME, JsonDocumentBuffer,
@@ -356,5 +361,5 @@ void app_main()
 
     initialise_wifi();
     /* Temporarily pin task to core, due to FPU uncertainty */
-    xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 9216, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 11520, NULL, 5, NULL, 1);
 }
